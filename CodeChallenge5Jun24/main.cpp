@@ -51,6 +51,7 @@
 #include <cstddef>
 #include <queue>
 #include <mutex>
+#include <map>
 #include <condition_variable>
 
 using namespace std;
@@ -415,6 +416,10 @@ int main()
     string line_in;
     string latest;
     message LastMsg;
+    std::multimap<uint32_t, string> MessageCollection;
+
+  
+ 
 
     //static std::map<uint32_t, message> MessageLog;
 
@@ -445,9 +450,14 @@ int main()
                 LastMsg.StuffMessageWithString(&latest);
                 // Unit testing showed this queuing business, with 4 threads,
                 // pumped out over 8000 messages without loss.
-                cout << LastMsg.ReportSenderID() << "-" << latest << " ";
+                MessageCollection.insert(std::pair<uint32_t, string>(LastMsg.ReportSenderID(), latest));
+
             }
+            // show content:
+            for (std::map<uint32_t, string>::iterator it = MessageCollection.begin(); it != MessageCollection.end(); ++it)
+                std::cout << (*it).second << ", ";
             cout <<  endl;
+            MessageCollection.clear();
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
