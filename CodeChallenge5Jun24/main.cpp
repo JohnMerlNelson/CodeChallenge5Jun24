@@ -1,3 +1,6 @@
+
+
+
 /*
 * This is the "challenge"  presented:
 *  Design and implement a program in which N (where N >= 3) senders sends 
@@ -28,53 +31,10 @@
 *  of the sender and receiver, such as adding new features. Include source-code
 *  comments as you would when submittng a change to a large existing C++
 *  project. Assume runtimeOS is Linux. Please provide instructions for
-*  compilation and running your program.
-********* End of presented text and start of task breakdown *********************
-* 
-There are four pieces to this that are going to be common to all potential solutions:  
-They are the sender, the receiver, the messages, with several sets 
-of options in each of the cases
+*  and running your program.
+********* End of presented text and start of task breakdown *********************/
 
-Now onto the pieces (the primary objects of this challenge):
-
-1: The sender, given an ID number will periodically populate a buffer with a 
-   message and send it to the receiver object. The requirement for multiple 
-   senders means that we're going to need to have multiple instances of it 
-   running concurrently.  Options for this include the period
-   It's life will consist of setting a timer with a value, putting together a
-   message, and sending it to the receiver in turn.
-   
-   
-2: This message format, with what's left to interpretation, has the potential 
-   of blurring the ID from the arbitrary data (like if the ID is a decimal 
-   number and the first byte(s) of the arbitrary data happen to also happen to
-   be numeric)
-
-   To facilitate rapid initial functionality, this application will restict 
-   the ID format to a decimal number and the data will be restricted to never 
-   starting with numerics nor use the value 0x00 for any of its bytes, 
-   reserving it to signal the end of the data part of the message (similar  
-   to the example). Given that a standard integer ranges up to 4,294,967,296, 
-   these restrictions will hold the message length to a maximum of 20 bytes 
-   and provide a simple means of parsing the ID from the payload.
-
-   To facilitate reformatting the message to more versatile formats, it will 
-   be assembled and broken down using functions tied to it as part of a 
-   "message" class.
-
-
-   One alternative is to use the filesystem to route the message traffic.
-   Specifically, the senders would add them to the json file and the
-   receiver would watch the status of the file and examine it when it
-   sees a change, pulling the messages out and printing them when the
-   message count reached the threshold.
-
-   This code was built using Visual Studio 2022 and cross-compiled
-   on an embedded Linux system (Beaglebone black)
-   Cloning this repository at the Visual Studio
-   apt-get install openssh-server build-essential gdb rsync make zip
-   apt-get install libjsoncpp-dev
-*/
+//#define COMPILE_MODULE_TEST_ROUTINES
 
 
 #include <cstdio>
@@ -114,7 +74,7 @@ private:
     char buffer[MAX_MESSAGE_LEN+1];
 };
 
-
+#ifdef COMPILE_MODULE_TEST_ROUTINES
 void MessageClassModuleTest(void);
 void ExerciseMessageFunctions(uint32_t ID, const char* MessageData)
 {
@@ -148,9 +108,13 @@ void MessageClassModuleTest(void)
     
     return;
 }
+#endif
+
+
 
 /// <summary>
-/// MessageStuffer
+/// This function assembles the message to transmit and sets the ID value
+/// when passed the id number and data
 /// </summary>
 /// <param name="SenderID"></param>
 /// <param name="MessageData"></param>
@@ -170,27 +134,13 @@ bool message::StuffMessageByComponents(uint32_t SenderID, const char *MessageDat
     return false;
 }
 
-
-
-uint32_t message::ReportSenderID(void)
-{
-    return SenderID;
-}
-int message::ProduceData(char* output_buffer, int size_limit)
-{
-    int DataStartPoint = 0;
-    while ((buffer[DataStartPoint] >= '0' && buffer[DataStartPoint] <= '9') && DataStartPoint < (MAX_MESSAGE_LEN - MAX_MSGDATA_LEN))
-        DataStartPoint++;
-    strncpy(output_buffer, (buffer + DataStartPoint), size_limit);
-    return 0;
-}
-
-int message::ProduceMessage(char* output_buffer, int size_limit)
-{
-    strncpy(output_buffer, buffer, size_limit);
-    return 0;
-}
-
+/// <summary>
+/// This is the corrolary to the message assembly from components and is meant
+/// to populate the message structure given a complete transmission formatted
+/// message
+/// </summary>
+/// <param name="input_buffer"></param>
+/// <returns></returns>
 int message::StuffMessageWithBuffer(const char* input_buffer)
 {
     int input_msglen = strlen(input_buffer);
@@ -208,6 +158,46 @@ int message::StuffMessageWithBuffer(const char* input_buffer)
     sscanf(input_buffer, "%u", &SenderID);
     return faults;
 }
+
+
+/// <summary>
+/// This function reports the SenderID as set.
+/// </summary>
+/// <param name=""></param>
+/// <returns></returns>
+uint32_t message::ReportSenderID(void)
+{
+    return SenderID;
+}
+
+/// <summary>
+/// This function, though not explicitly used in this challenge, is
+/// meant to provide access to just the data portion of the message
+/// </summary>
+/// <param name="output_buffer"></param>
+/// <param name="size_limit"></param>
+/// <returns></returns>
+int message::ProduceData(char* output_buffer, int size_limit)
+{
+    int DataStartPoint = 0;
+    while ((buffer[DataStartPoint] >= '0' && buffer[DataStartPoint] <= '9') && DataStartPoint < (MAX_MESSAGE_LEN - MAX_MSGDATA_LEN))
+        DataStartPoint++;
+    strncpy(output_buffer, (buffer + DataStartPoint), size_limit);
+    return 0;
+}
+
+/// <summary>
+/// This function produces the combined message (formatted ID and data together)
+/// </summary>
+/// <param name="output_buffer"></param>
+/// <param name="size_limit"></param>
+/// <returns></returns>
+int message::ProduceMessage(char* output_buffer, int size_limit)
+{
+    strncpy(output_buffer, buffer, size_limit);
+    return 0;
+}
+
 class receiver
 {
 public:
@@ -222,11 +212,12 @@ receiver::take_message(uint32_t id, char buffer[])
 }
 
 
+
+/// <summary>
+/// This class is meant to do one thing: send messages
+/// </summary>
 class sender
 {
-   
-
-
 public:
 
     sender(void);
@@ -257,9 +248,7 @@ sender::~sender(void)
 
 void sender::spammer(void)
 {
-    //auto start = std::chrono::high_resolution_clock::now();
     message spam;
-    //char data[10];
     char MessageBuffer[MAX_MESSAGE_LEN+1];
     char UniqueData[MAX_MSGDATA_LEN + 1];
     uint16_t spamcount = 0;
@@ -285,6 +274,8 @@ int main()
     string line_in;
     static std::map<uint32_t, message> MessageLog;
 
+    cout << "Starting demo for %s!\n" << "CodeChallenge5Jun24";
+
     sender sender1 = sender(1, 1200,MessageLog);
     sender sender2 = sender(2, 1500,MessageLog);
     sender sender3 = sender(3, 1800,MessageLog);
@@ -293,12 +284,11 @@ int main()
     std::thread s2(&sender::spammer, &sender2); // s1 runs sender::spammer on object sender2
     std::thread s3(&sender::spammer, &sender3); // s1 runs sender::spammer on object sender3
     std::thread s4(&sender::spammer, &sender3); // s1 runs sender::spammer on object sender3
-    printf("Starting demo for %s!\n", "CodeChallenge5Jun24");
  
-    //while (MessageSendPeriod != 0)
-    //{
-    //    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    //}
+    while (MessageSendPeriod != 0)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
     //cin >> line_in;
     //cin >> line_in;
     //cin >> line_in;
