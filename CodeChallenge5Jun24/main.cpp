@@ -35,7 +35,10 @@
 ********* End of presented text and start of task breakdown *********************/
 
 //#define COMPILE_MODULE_TEST_ROUTINES
-
+#define MAX_MESSAGE_LEN 20
+#define MAX_MSGDATA_LEN 10
+#define MESSAGE_BATCH_PROCESSING_THRESHOLD 3
+#define MESSAGE_SENDER_COUNT 4
 
 #include <cstdio>
 #include <iostream>
@@ -44,8 +47,12 @@
 #include <utility>
 #include <stdlib.h>
 #include <string.h>
-#include <cstddef>4
-#include <map>
+#include <string>
+#include <cstddef>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+
 using namespace std;
 
 
@@ -62,6 +69,7 @@ public:
     message(void) = default;
     bool StuffMessageByComponents(uint32_t SenderID, const char* MessageData);
     int StuffMessageWithBuffer(const char* input_buffer);
+    int StuffMessageWithString(string* input_buffer);
     uint32_t ReportSenderID(void);
     int ProduceData(char* output_buffer, int size_limit);
     int ProduceMessage(char* output_buffer, int size_limit);
@@ -69,8 +77,6 @@ public:
 
 private:
     uint32_t SenderID;
-#define MAX_MESSAGE_LEN 20
-#define MAX_MSGDATA_LEN 10
     char buffer[MAX_MESSAGE_LEN+1];
 };
 
@@ -159,6 +165,32 @@ int message::StuffMessageWithBuffer(const char* input_buffer)
     return faults;
 }
 
+/// <summary>
+/// This is the corrolary to the message assembly from components and is meant
+/// to populate the message structure given a complete transmission formatted
+/// message
+/// </summary>
+/// <param name="input_buffer"></param>
+/// <returns></returns>
+int message::StuffMessageWithString(string *input_buffer)
+{
+    int input_msglen = input_buffer->length();
+    int faults = 0;
+    memset(buffer, 0, sizeof(buffer));
+    if (input_msglen > MAX_MESSAGE_LEN)
+    {
+        //input_buffer->
+        memcpy(buffer, input_buffer->c_str(), MAX_MESSAGE_LEN);
+        faults = -1;
+    }
+    else
+    {
+        memcpy(buffer, input_buffer->c_str(), input_msglen);
+    }
+    sscanf(buffer, "%u", &SenderID);
+    return faults;
+}
+
 
 /// <summary>
 /// This function reports the SenderID as set.
@@ -198,17 +230,124 @@ int message::ProduceMessage(char* output_buffer, int size_limit)
     return 0;
 }
 
+
+
+// ripped from stackexchange at:
+//https://codereview.stackexchange.com/questions/267847/thread-safe-message-queue
+// And, of course, it won't compile
+//template <typename T>
+//class ThreadSafeQueue {
+//    std::mutex mutex;
+//    std::condition_variable cond_var;
+//    std::queue<T> queue;
+//
+//public:
+//    void push(T&& item) {
+//        {
+//            std::lock_guard lock(mutex);
+//            queue.push(item);
+//        }
+//
+//        cond_var.notify_one();
+//    }
+//
+//    T& front() {
+//        std::unique_lock lock(mutex);
+//        cond_var.wait(lock, [&] { return !queue.empty(); });
+//        return queue.front();
+//    }
+//
+//    void pop() {
+//        std::lock_guard lock(mutex);
+//        queue.pop();
+//    }
+//};
+
+
+// C++ implementation of the above approach
+// Thread-safe queue ripped from
+// https://www.geeksforgeeks.org/implement-thread-safe-queue-in-c/
+// and then added queue size reporting function.
+// It will need the following headers:
+//    #include <condition_variable> 
+//    #include <iostream> 
+//    #include <mutex> 
+//    #include <queue> 
+
+
+template <typename T>
+class TSQueue {
+private:
+    // Underlying queue 
+    std::queue<T> m_queue;
+
+    // mutex for thread synchronization 
+    std::mutex m_mutex;
+
+    // Condition variable for signaling 
+    std::condition_variable m_cond;
+
+public:
+    // Pushes an element to the queue 
+    void push(T item)
+    {
+
+        // Acquire lock 
+        std::unique_lock<std::mutex> lock(m_mutex);
+
+        // Add item 
+        m_queue.push(item);
+
+        // Notify one thread that 
+        // is waiting 
+        m_cond.notify_one();
+    }
+
+    // Pops an element off the queue 
+    T pop()
+    {
+
+        // acquire lock 
+        std::unique_lock<std::mutex> lock(m_mutex);
+
+        // wait until queue is not empty 
+        m_cond.wait(lock,
+            [this]() { return !m_queue.empty(); });
+
+        // retrieve item 
+        T item = m_queue.front();
+        m_queue.pop();
+
+        // return item 
+        return item;
+    }
+    int size()
+    {
+        // acquire lock 
+        std::unique_lock<std::mutex> lock(m_mutex);
+
+        // retrieve item 
+        int count = m_queue.size();
+
+        // return item 
+        return count;
+    }
+};
+
+
+
+
 class receiver
 {
 public:
     receiver(void);
     ~receiver(void);
-    map < uint32_t, message> message_repository;
+    //map < uint32_t, message> message_repository;
     void take_message(uint32_t id, char buffer[]);
 };
-receiver::take_message(uint32_t id, char buffer[])
+void receiver::take_message(uint32_t id, char buffer[])
 {
-    message_repository[id] = buffer;
+    //message_repository[id] = buffer;
 }
 
 
@@ -220,25 +359,26 @@ class sender
 {
 public:
 
-    sender(void);
-    sender(int idnum, int period,map<uint32_t,message>  receiver);
+    //sender(void);
+    sender(int idnum, int period,TSQueue<string>  *buffah);
     ~sender(void);
     void spammer(void);
+    uint32_t MessageSendPeriod;
 
 private:
-    uint32_t MessageSendPeriod;
     uint32_t SenderIDValue;
-    message *delivery_channel;
+    //message *delivery_channel;
+    TSQueue<string> *delivery_channel;
 };
-sender::sender(void)
-{
-    sender(1, 1,NULL);
-}
-sender::sender(int idnum, int period, map<uint32_t, message> receiver)
+//sender::sender(void)
+//{
+//    sender(1, 1,NULL);
+//}
+sender::sender(int idnum, int period, TSQueue<string> *buffah)
 {
     SenderIDValue = idnum;
     MessageSendPeriod = period;
-    delivery_channel = receiver;
+    delivery_channel = buffah;
 
 }
 sender::~sender(void)
@@ -251,6 +391,7 @@ void sender::spammer(void)
     message spam;
     char MessageBuffer[MAX_MESSAGE_LEN+1];
     char UniqueData[MAX_MSGDATA_LEN + 1];
+    string msgstring;
     uint16_t spamcount = 0;
 
     while (MessageSendPeriod != 0)
@@ -260,10 +401,10 @@ void sender::spammer(void)
         snprintf(UniqueData, (MAX_MSGDATA_LEN), "spm0x%4.4x",spamcount++);
         spam.StuffMessageByComponents(SenderIDValue, UniqueData);
         spam.ProduceMessage(MessageBuffer, MAX_MESSAGE_LEN + 1);
-        // test output to verify that the messages above are coming out
-        cout << MessageBuffer << endl;
-
-        Messagelog[spam.ReportSenderID] = MessageBuffer;
+   
+        msgstring.assign(MessageBuffer);
+   
+        delivery_channel->push(msgstring);
     }
 
 }
@@ -272,27 +413,50 @@ void sender::spammer(void)
 int main()
 {
     string line_in;
-    static std::map<uint32_t, message> MessageLog;
+    string latest;
+    message LastMsg;
 
-    cout << "Starting demo for %s!\n" << "CodeChallenge5Jun24";
+    //static std::map<uint32_t, message> MessageLog;
 
-    sender sender1 = sender(1, 1200,MessageLog);
-    sender sender2 = sender(2, 1500,MessageLog);
-    sender sender3 = sender(3, 1800,MessageLog);
-    sender sender4 = sender(4, 1950,MessageLog);
+    TSQueue<string> IncomingMessages;
+
+    cout << "Starting demo for CodeChallenge5Jun24!\n" << "";
+
+    //TODO: set up sender as an aray of MESSAGE_SENDER_COUNT elements and
+    // fire off that many senders to spam
+    sender sender1 = sender(1, 120,&IncomingMessages);
+    sender sender2 = sender(2, 150,&IncomingMessages);
+    sender sender3 = sender(3, 180,&IncomingMessages);
+    sender sender4 = sender(4, 195,&IncomingMessages);
     std::thread s1(&sender::spammer, &sender1); // s1 runs sender::spammer on object sender1
     std::thread s2(&sender::spammer, &sender2); // s1 runs sender::spammer on object sender2
     std::thread s3(&sender::spammer, &sender3); // s1 runs sender::spammer on object sender3
-    std::thread s4(&sender::spammer, &sender3); // s1 runs sender::spammer on object sender3
+    std::thread s4(&sender::spammer, &sender4); // s1 runs sender::spammer on object sender3
  
-    while (MessageSendPeriod != 0)
+    while (true)
     {
+        int messagecount = IncomingMessages.size();
+        if (messagecount >= MESSAGE_BATCH_PROCESSING_THRESHOLD)
+        {
+            // collect and archive three messages
+            for  (int lcv=0;lcv < MESSAGE_BATCH_PROCESSING_THRESHOLD;lcv++)
+            {
+                latest = IncomingMessages.pop();
+                LastMsg.StuffMessageWithString(&latest);
+                // Unit testing showed this queuing business, with 4 threads,
+                // pumped out over 8000 messages without loss.
+                cout << LastMsg.ReportSenderID() << "-" << latest << " ";
+            }
+            cout <<  endl;
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
-    //cin >> line_in;
-    //cin >> line_in;
-    //cin >> line_in;
-
+    s1.detach();
+    s2.detach();
+    s3.detach();
+    s4.detach();
+    cout << "done";
+ 
     return 0;
 
 }
