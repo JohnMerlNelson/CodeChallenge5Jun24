@@ -64,7 +64,8 @@ Now onto the pieces (the primary objects of this challenge):
 
    
    ID
-
+    apt-get install openssh-server build-essential gdb rsync make zip
+    apt-get install libjsoncpp-dev
 */
 
 
@@ -76,9 +77,9 @@ Now onto the pieces (the primary objects of this challenge):
 #include <stdlib.h>
 #include <string.h>
 using namespace std;
+
 /// <summary>
-/// This function waits a randomized interval of time within a predefined range, 
-/// formats a buffer with a number and up to 10 random letters, and then sends
+/// This class handles formatting and parsing messages 
 /// it for "processing"
 /// </summary>
 /// <param name=""></param>
@@ -87,11 +88,11 @@ class message
 
 public:
     message(void) = default;
-    bool StuffMessage(uint32_t SenderID, const char* MessageData);
+    bool StuffMessageByComponents(uint32_t SenderID, const char* MessageData);
+    int StuffMessageWithBuffer(const char* input_buffer);
     uint32_t ReportSenderID(void);
     int ProduceData(char* output_buffer, int size_limit);
     int ProduceMessage(char* output_buffer, int size_limit);
-    int StoreMessage(const char* input_buffer);
 
 
 private:
@@ -107,7 +108,7 @@ void ExerciseMessageFunctions(uint32_t ID, const char* MessageData)
 {
     message TestMsg;
     char msgbuf[50];
-    if (TestMsg.StuffMessage(ID, MessageData) == false)
+    if (TestMsg.StuffMessageByComponents(ID, MessageData) == false)
         cout << "goodstuff";
     else
         cout << "badstuff";
@@ -120,7 +121,7 @@ void ExerciseMessageFunctions(uint32_t ID, const char* MessageData)
     TestMsg.ProduceMessage(msgbuf, sizeof(msgbuf));
     cout << " msg=" << msgbuf << endl;
     //testcode for storemessage oversize message test TestMsg.StoreMessage("5234567890xxxxxxxxxxyy");
-    TestMsg.StoreMessage(msgbuf);
+    TestMsg.StuffMessageWithBuffer(msgbuf);
     cout << " msg=" << msgbuf << endl;
 }
 void MessageClassModuleTest(void)
@@ -142,7 +143,7 @@ void MessageClassModuleTest(void)
 /// <param name="SenderID"></param>
 /// <param name="MessageData"></param>
 /// <returns>false if everything went okay, true if there's going to be...trouble</returns>
-bool message::StuffMessage(uint32_t SenderID, const char *MessageData)
+bool message::StuffMessageByComponents(uint32_t SenderID, const char *MessageData)
 {
     int IdEndPoint;
     this->SenderID = SenderID;
@@ -178,7 +179,7 @@ int message::ProduceMessage(char* output_buffer, int size_limit)
     return 0;
 }
 
-int message::StoreMessage(const char* input_buffer)
+int message::StuffMessageWithBuffer(const char* input_buffer)
 {
     int input_msglen = strlen(input_buffer);
     int faults = 0;
@@ -242,7 +243,7 @@ void sender::spammer(void)
         std::this_thread::sleep_for(std::chrono::milliseconds(MessageSendPeriod));
  
         snprintf(UniqueData, (MAX_MSGDATA_LEN), "spm0x%4.4x",spamcount++);
-        spam.StuffMessage(SenderIDValue, UniqueData);
+        spam.StuffMessageByComponents(SenderIDValue, UniqueData);
         spam.ProduceMessage(MessageBuffer, MAX_MESSAGE_LEN + 1);
         cout << MessageBuffer << endl;
     }
@@ -263,13 +264,13 @@ int main()
     std::thread s4(&sender::spammer, &sender3); // s1 runs sender::spammer on object sender3
     printf("Starting demo for %s!\n", "CodeChallenge5Jun24");
  
-    while (MessageSendPeriod != 0)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
-    cin >> line_in;
-    cin >> line_in;
-    cin >> line_in;
+    //while (MessageSendPeriod != 0)
+    //{
+    //    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    //}
+    //cin >> line_in;
+    //cin >> line_in;
+    //cin >> line_in;
 
     MessageClassModuleTest();
     return 0;
