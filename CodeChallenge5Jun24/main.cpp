@@ -32,7 +32,7 @@
 ********* End of presented text and start of task breakdown *********************
 * 
 There are four pieces to this that are going to be common to all potential solutions:  
-They are the sender, the receiver, the messages, and the reporter, with several sets 
+They are the sender, the receiver, the messages, with several sets 
 of options in each of the cases
 
 Now onto the pieces (the primary objects of this challenge):
@@ -62,10 +62,18 @@ Now onto the pieces (the primary objects of this challenge):
    be assembled and broken down using functions tied to it as part of a 
    "message" class.
 
-   
-   ID
-    apt-get install openssh-server build-essential gdb rsync make zip
-    apt-get install libjsoncpp-dev
+
+   One alternative is to use the filesystem to route the message traffic.
+   Specifically, the senders would add them to the json file and the
+   receiver would watch the status of the file and examine it when it
+   sees a change, pulling the messages out and printing them when the
+   message count reached the threshold.
+
+   This code was built using Visual Studio 2022 and cross-compiled
+   on an embedded Linux system (Beaglebone black)
+   Cloning this repository at the Visual Studio
+   apt-get install openssh-server build-essential gdb rsync make zip
+   apt-get install libjsoncpp-dev
 */
 
 
@@ -76,7 +84,11 @@ Now onto the pieces (the primary objects of this challenge):
 #include <utility>
 #include <stdlib.h>
 #include <string.h>
+#include <cstddef>4
+#include <map>
 using namespace std;
+
+
 
 /// <summary>
 /// This class handles formatting and parsing messages 
@@ -196,6 +208,18 @@ int message::StuffMessageWithBuffer(const char* input_buffer)
     sscanf(input_buffer, "%u", &SenderID);
     return faults;
 }
+class receiver
+{
+public:
+    receiver(void);
+    ~receiver(void);
+    map < uint32_t, message> message_repository;
+    void take_message(uint32_t id, char buffer[]);
+};
+receiver::take_message(uint32_t id, char buffer[])
+{
+    message_repository[id] = buffer;
+}
 
 
 class sender
@@ -206,22 +230,24 @@ class sender
 public:
 
     sender(void);
-    sender(int idnum, int period);
+    sender(int idnum, int period,map<uint32_t,message>  receiver);
     ~sender(void);
     void spammer(void);
 
 private:
     uint32_t MessageSendPeriod;
     uint32_t SenderIDValue;
+    message *delivery_channel;
 };
 sender::sender(void)
 {
-    sender(1, 1);
+    sender(1, 1,NULL);
 }
-sender::sender(int idnum, int period)
+sender::sender(int idnum, int period, map<uint32_t, message> receiver)
 {
     SenderIDValue = idnum;
     MessageSendPeriod = period;
+    delivery_channel = receiver;
 
 }
 sender::~sender(void)
@@ -245,7 +271,10 @@ void sender::spammer(void)
         snprintf(UniqueData, (MAX_MSGDATA_LEN), "spm0x%4.4x",spamcount++);
         spam.StuffMessageByComponents(SenderIDValue, UniqueData);
         spam.ProduceMessage(MessageBuffer, MAX_MESSAGE_LEN + 1);
+        // test output to verify that the messages above are coming out
         cout << MessageBuffer << endl;
+
+        Messagelog[spam.ReportSenderID] = MessageBuffer;
     }
 
 }
@@ -254,10 +283,12 @@ void sender::spammer(void)
 int main()
 {
     string line_in;
-    sender sender1 = sender(1, 1200);
-    sender sender2 = sender(2, 1500);
-    sender sender3 = sender(3, 1800);
-    sender sender4 = sender(4, 1950);
+    static std::map<uint32_t, message> MessageLog;
+
+    sender sender1 = sender(1, 1200,MessageLog);
+    sender sender2 = sender(2, 1500,MessageLog);
+    sender sender3 = sender(3, 1800,MessageLog);
+    sender sender4 = sender(4, 1950,MessageLog);
     std::thread s1(&sender::spammer, &sender1); // s1 runs sender::spammer on object sender1
     std::thread s2(&sender::spammer, &sender2); // s1 runs sender::spammer on object sender2
     std::thread s3(&sender::spammer, &sender3); // s1 runs sender::spammer on object sender3
@@ -272,7 +303,6 @@ int main()
     //cin >> line_in;
     //cin >> line_in;
 
-    MessageClassModuleTest();
     return 0;
 
 }
