@@ -72,6 +72,7 @@ Now onto the pieces (the primary objects of this challenge):
 #include <iostream>
 #include <cstdint>
 #include <thread>
+#include <utility>
 #include <stdlib.h>
 #include <string.h>
 using namespace std;
@@ -206,12 +207,11 @@ public:
     sender(void);
     sender(int idnum, int period);
     ~sender(void);
+    void spammer(void);
 
 private:
-    int IdNumber;
-    int MessageSendPeriod;
-    char CurrentMsgBuffer;
-    void spammer(void);
+    uint32_t MessageSendPeriod;
+    uint32_t SenderIDValue;
 };
 sender::sender(void)
 {
@@ -219,42 +219,57 @@ sender::sender(void)
 }
 sender::sender(int idnum, int period)
 {
-    this->IdNumber = idnum;
-    this->MessageSendPeriod = period;
+    SenderIDValue = idnum;
+    MessageSendPeriod = period;
 
 }
 sender::~sender(void)
 {
 
 }
-// "busy sleep" while suggesting that other threads run 
-// for a small amount of time
-void little_sleep(std::chrono::microseconds us)
-{
-    auto start = std::chrono::high_resolution_clock::now();
-    auto end = start + us;
-    do
-    {
-        std::this_thread::yield();
-    } while (std::chrono::high_resolution_clock::now() < end);
-}
+
 void sender::spammer(void)
 {
+    //auto start = std::chrono::high_resolution_clock::now();
+    message spam;
+    //char data[10];
+    char MessageBuffer[MAX_MESSAGE_LEN+1];
+    char UniqueData[MAX_MSGDATA_LEN + 1];
+    uint16_t spamcount = 0;
+
+    while (MessageSendPeriod != 0)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(MessageSendPeriod));
+ 
+        snprintf(UniqueData, (MAX_MSGDATA_LEN), "spm0x%4.4x",spamcount++);
+        spam.StuffMessage(SenderIDValue, UniqueData);
+        spam.ProduceMessage(MessageBuffer, MAX_MESSAGE_LEN + 1);
+        cout << MessageBuffer << endl;
+    }
 
 }
 
 
 int main()
 {
-    printf("hello from %s!\n", "CodeChallenge5Jun24");
-    auto start = std::chrono::high_resolution_clock::now();
-
-    little_sleep(std::chrono::microseconds(1000000));
-
-    auto elapsed = std::chrono::high_resolution_clock::now() - start;
-    std::cout << "waited for "
-        << std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count()
-        << " microseconds\n";
+    string line_in;
+    sender sender1 = sender(1, 1200);
+    sender sender2 = sender(2, 1500);
+    sender sender3 = sender(3, 1800);
+    sender sender4 = sender(4, 1950);
+    std::thread s1(&sender::spammer, &sender1); // s1 runs sender::spammer on object sender1
+    std::thread s2(&sender::spammer, &sender2); // s1 runs sender::spammer on object sender2
+    std::thread s3(&sender::spammer, &sender3); // s1 runs sender::spammer on object sender3
+    std::thread s4(&sender::spammer, &sender3); // s1 runs sender::spammer on object sender3
+    printf("Starting demo for %s!\n", "CodeChallenge5Jun24");
+ 
+    while (MessageSendPeriod != 0)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    cin >> line_in;
+    cin >> line_in;
+    cin >> line_in;
 
     MessageClassModuleTest();
     return 0;
