@@ -2,35 +2,42 @@
    ***Build and Development Notes***
 
    This code was built using Visual Studio 2022 (community edition) 
-   using its cross-platform development feature(s).  It was then pushed
-   to a github public repository for sharing. This choice was made
-   because of its ease in bring-up on another (likely) windows based PC.  
-
+   using its cross-platform development feature(s).  Initial build and
+   testing were done by connecting a BeagleBone Black to the PC,
+   performing the package updates and ensuring the packages (listed
+   below) were installed. It was then pushed to a github public 
+   repository for sharing. This choice was made to take advantage
+   of Microsoft's diabolically simple path to initial success.  
 
    Cloning this repository at the Visual Studio start screen *should*
    (or has in other instances) bring up the environment to the point
-   where it will, once connected to a linux system, build this program
-   and remotely execute using the remote functionality of the gdb
-   debugger interface.
+   where it will build the application on the target system.  
+   After cloning, go to the tools pull down menu, select the options
+   item, go to the "cross platform" category and add a connection to a
+   suitable linux system, including a username and password.
+
+   Microsoft has several tutorial pages including this one at:
+   https://learn.microsoft.com/en-us/cpp/build/get-started-linux-cmake?view=msvc-170
    
    The target system needs the following packages installed to ensure
    remote debugging. 
    apt-get install openssh-server build-essential gdb rsync make zip
 
-   apt-get install libjsoncpp-dev
-   
-   After this is set, go to the tools pull down menu, select options
-   go to the "cross platform" category and add a connection to the
-   remote system, including a username and password.
-   Microsoft has several tutorial pages including this one at:
-   https://learn.microsoft.com/en-us/cpp/build/get-started-linux-cmake?view=msvc-170
    
    And this is in addition to several short youtube videos outlining
-   how to operate this.
+   how to operate this.  A search there with the terms
+   "visual studio linux development with c++" (without the quotes)
+   will produce several tutorials on this task.
+   This includes the one that I used to obtain initial success at:
+   https://youtu.be/af-1hDfoRcg?si=sZvhEafJCvRzXfzK
+   And it also produced another video from one of my favorite 
+   youtubers, David Plummer, who does the same with a Raspberry Pi at:
+   https://youtu.be/QAliMv5_DWI?si=DE_kcIW3xvfk5g7y
 
 
 
- This is the text of the "challenge"  that was presented:
+
+ ***The text of the "challenge"  that was presented***
 
  Design and implement a program in which N (where N >= 3) senders sends 
  messages at arbitrary rate to a receiver and receiver processes messages 
@@ -62,7 +69,7 @@
   project. Assume runtimeOS is Linux. Please provide instructions for
   compilation and running your program.
 
-********* End of presented text and start of task breakdown *********************
+***Possible Solutions discussion***
 
 Regarding possible solutions:
 Single thread option:
@@ -116,35 +123,4 @@ This puts the solution into four primary objects:
 They are the sender, the receiver, the messages, thread safe queue.
 
 
-
-
-
-   Now onto the pieces (the primary objects of this challenge):
-
-1: The sender, given an ID number will periodically populate a buffer with a 
-   message and send it to the receiver object. Rather than force the sender
-   
-   The requirement for multiple 
-   senders means that we're going to need to have multiple instances of it 
-   running concurrently.  Options for this include the period
-   It's life will consist of setting a timer with a value, putting together a
-   message, and sending it to the receiver in turn.
-   
-   
-2: This message format, with what's left to interpretation, has the potential 
-   of blurring the ID from the arbitrary data (like if the ID is a decimal 
-   number and the first byte(s) of the arbitrary data happen to also happen to
-   be numeric)
-
-   To facilitate rapid initial functionality, this application will restict 
-   the ID format to a decimal number and the data will be restricted to never 
-   starting with numerics nor use the value 0x00 for any of its bytes, 
-   reserving it to signal the end of the data part of the message (similar  
-   to the example). Given that a standard integer ranges up to 4,294,967,296, 
-   these restrictions will hold the message length to a maximum of 20 bytes 
-   and provide a simple means of parsing the ID from the payload.
-
-   To facilitate reformatting the message to more versatile formats, it will 
-   be assembled and broken down using functions tied to it as part of a 
-   "message" class.
 
